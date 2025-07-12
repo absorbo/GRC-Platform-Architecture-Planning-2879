@@ -1,3 +1,4 @@
+```jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -9,11 +10,6 @@ export const useDatabase = () => {
     throw new Error('useDatabase must be used within a DatabaseProvider');
   }
   return context;
-};
-
-// Simple hash function for browser compatibility
-const simpleHash = (password) => {
-  return btoa(password + 'salt'); // Simple base64 encoding with salt
 };
 
 export const DatabaseProvider = ({ children }) => {
@@ -47,7 +43,6 @@ export const DatabaseProvider = ({ children }) => {
           createdAt: new Date().toISOString(),
           lastLogin: null
         };
-
         setUsers([defaultAdmin]);
         saveToStorage({
           users: [defaultAdmin],
@@ -58,7 +53,6 @@ export const DatabaseProvider = ({ children }) => {
         });
       }
     };
-
     initializeDatabase();
   }, []);
 
@@ -67,17 +61,31 @@ export const DatabaseProvider = ({ children }) => {
   };
 
   const saveDatabase = () => {
-    const data = { users, companies, assessments, riskRegisters, projects };
+    const data = {
+      users,
+      companies,
+      assessments,
+      riskRegisters,
+      projects
+    };
     saveToStorage(data);
   };
 
   // User operations
   const createUser = async (userData) => {
-    const hashedPassword = simpleHash(userData.password);
+    // Verify required fields
+    if (!userData.email || !userData.password || !userData.role) {
+      throw new Error('Missing required fields');
+    }
+
+    // Check if email already exists
+    if (users.some(user => user.email === userData.email)) {
+      throw new Error('Email already exists');
+    }
+
     const newUser = {
       id: uuidv4(),
       ...userData,
-      password: hashedPassword,
       isActive: true,
       createdAt: new Date().toISOString(),
       lastLogin: null
@@ -92,7 +100,10 @@ export const DatabaseProvider = ({ children }) => {
       riskRegisters,
       projects
     });
-    return newUser;
+
+    // Return user without password
+    const { password, ...userWithoutPassword } = newUser;
+    return userWithoutPassword;
   };
 
   const updateUser = (userId, updates) => {
@@ -136,6 +147,7 @@ export const DatabaseProvider = ({ children }) => {
       ...companyData,
       createdAt: new Date().toISOString()
     };
+
     const updatedCompanies = [...companies, newCompany];
     setCompanies(updatedCompanies);
     saveToStorage({
@@ -175,12 +187,19 @@ export const DatabaseProvider = ({ children }) => {
     return companies.filter(company => company.resellerId === resellerId);
   };
 
-  // Trigger save after state updates
-  useEffect(() => {
-    if (users.length > 0) {
-      saveDatabase();
-    }
-  }, [users, companies, assessments, riskRegisters, projects]);
+  // Debug function to view current database state
+  const getDatabaseState = () => {
+    return {
+      users: users.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      }),
+      companies,
+      assessments,
+      riskRegisters,
+      projects
+    };
+  };
 
   const value = {
     // Users
@@ -191,15 +210,21 @@ export const DatabaseProvider = ({ children }) => {
     findUserByEmail,
     findUserById,
     getUsersByRole,
+
     // Companies
     companies,
     createCompany,
     updateCompany,
     getCompaniesByReseller,
+
+    // Debug
+    getDatabaseState,
+
     // Other entities
     assessments,
     riskRegisters,
     projects,
+
     // Database operations
     saveDatabase
   };
@@ -210,3 +235,4 @@ export const DatabaseProvider = ({ children }) => {
     </DatabaseContext.Provider>
   );
 };
+```

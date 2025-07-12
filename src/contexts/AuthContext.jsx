@@ -1,3 +1,4 @@
+```jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import Cookies from 'js-cookie';
 import { useDatabase } from './DatabaseContext';
@@ -12,13 +13,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Simple password validation without bcrypt for browser compatibility
-const validatePassword = (inputPassword, storedPassword) => {
-  // In production, you'd want proper password hashing
-  // For demo purposes, we'll use simple comparison or implement a browser-compatible solution
-  return inputPassword === storedPassword || storedPassword === 'admin123';
-};
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,11 +22,18 @@ export const AuthProvider = ({ children }) => {
     const initializeAuth = () => {
       const token = Cookies.get('trusecure_token');
       if (token) {
-        const userData = JSON.parse(atob(token));
-        const currentUser = findUserById(userData.id);
-        if (currentUser && currentUser.isActive) {
-          setUser(currentUser);
-        } else {
+        try {
+          const userData = JSON.parse(atob(token));
+          const currentUser = findUserById(userData.id);
+          if (currentUser && currentUser.isActive) {
+            // Don't include password in the user state
+            const { password, ...userWithoutPassword } = currentUser;
+            setUser(userWithoutPassword);
+          } else {
+            Cookies.remove('trusecure_token');
+          }
+        } catch (error) {
+          console.error('Error parsing auth token:', error);
           Cookies.remove('trusecure_token');
         }
       }
@@ -44,6 +45,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const foundUser = findUserByEmail(email);
+    
     if (!foundUser) {
       throw new Error('Invalid email or password');
     }
@@ -52,27 +54,34 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Account is deactivated');
     }
 
-    const isPasswordValid = validatePassword(password, foundUser.password);
-    if (!isPasswordValid) {
+    if (foundUser.password !== password) {
       throw new Error('Invalid email or password');
     }
 
     // Update last login
-    updateUser(foundUser.id, { lastLogin: new Date().toISOString() });
-    
+    updateUser(foundUser.id, {
+      lastLogin: new Date().toISOString()
+    });
+
     // Create session token
-    const tokenData = { id: foundUser.id, email: foundUser.email, role: foundUser.role };
+    const tokenData = {
+      id: foundUser.id,
+      email: foundUser.email,
+      role: foundUser.role
+    };
     const token = btoa(JSON.stringify(tokenData));
-    
+
     // Set secure cookie (7 days expiry)
-    Cookies.set('trusecure_token', token, { 
-      expires: 7, 
+    Cookies.set('trusecure_token', token, {
+      expires: 7,
       secure: window.location.protocol === 'https:',
       sameSite: 'strict'
     });
 
-    setUser(foundUser);
-    return foundUser;
+    // Don't include password in the user state
+    const { password: _, ...userWithoutPassword } = foundUser;
+    setUser(userWithoutPassword);
+    return userWithoutPassword;
   };
 
   const logout = () => {
@@ -100,3 +109,4 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+```
